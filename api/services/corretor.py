@@ -1,15 +1,10 @@
-# services/corretor.py
 import cv2
-import pytesseract
-import json
-import random
 import numpy as np
+import json
 import os
 
-# Caminho para os gabaritos
 GABARITO_PATH = "data/gabaritos.json"
 
-# Carrega os gabaritos do arquivo
 def carregar_gabarito(turma):
     if not os.path.exists(GABARITO_PATH):
         raise Exception("Arquivo de gabaritos não encontrado.")
@@ -22,46 +17,70 @@ def carregar_gabarito(turma):
     
     return gabaritos[turma]
 
-# Função principal de correção
+def detectar_respostas(imagem_path, total_questoes=44):
+    imagem = cv2.imread(imagem_path)
+    imagem_cinza = cv2.cvtColor(imagem, cv2.COLOR_BGR2GRAY)
+    imagem_cinza = cv2.medianBlur(imagem_cinza, 5)
+
+    circles = cv2.HoughCircles(
+        imagem_cinza,
+        cv2.HOUGH_GRADIENT,
+        dp=1.2,
+        minDist=20,
+        param1=50,
+        param2=30,
+        minRadius=10,
+        maxRadius=20
+    )
+
+    if circles is None:
+        return None
+
+    circles = np.uint16(np.around(circles[0, :]))
+    circles = sorted(circles, key=lambda c: (c[1], c[0]))
+
+    alternativas = ['A', 'B', 'C', 'D', 'E']
+    respostas = [''] * total_questoes
+    linhas_detectadas = {}
+
+    for (x, y, r) in circles:
+        linha = int(round((y - 400) / 40))  # ajuste fino conforme layout
+
+        if linha < 0 or linha >= total_questoes:
+            continue
+
+        recorte = imagem_cinza[y - r:y + r, x - r:x + r]
+        if recorte.size == 0:
+            continue
+
+        intensidade = np.sum(255 - recorte)
+
+        if linha not in linhas_detectadas:
+            linhas_detectadas[linha] = []
+
+        linhas_detectadas[linha].append((x, intensidade))
+
+    for linha, bolhas in linhas_detectadas.items():
+        bolhas = sorted(bolhas, key=lambda b: b[0])
+        if len(bolhas) != 5:
+            continue
+        indice = np.argmax([b[1] for b in bolhas])
+        respostas[linha] = alternativas[indice]
+
+    return respostas
+
 def corrigir_prova(turma, aluno, caminho_imagem):
     try:
         gabarito = carregar_gabarito(turma)
-        total_questoes = len(gabarito)
+        respostas_extraidas = detectar_respostas(caminho_imagem, total_questoes=len(gabarito))
 
-        imagem = cv2.imread(caminho_imagem)
-        imagem_cinza = cv2.cvtColor(imagem, cv2.COLOR_BGR2GRAY)
-        _, binarizada = cv2.threshold(imagem_cinza, 150, 255, cv2.THRESH_BINARY_INV)
+        if respostas_extraidas is None:
+            return {"erro": "Não foi possível detectar bolhas na imagem."}
 
-        # Aqui definimos posições simuladas para bolhas
-        # Ex: 44 questões em colunas, 5 alternativas cada
-        respostas_extraidas = []
-
-        altura, largura = binarizada.shape
-        altura_inicial = 200  # onde começa a 1ª questão
-        espacamento_vertical = 50
-        espacamento_horizontal = 70
-        bolha_radius = 15
-
-        for i in range(total_questoes):
-            linha_y = altura_inicial + i * espacamento_vertical
-            alternativas = ['A', 'B', 'C', 'D', 'E']
-            intensidade = []
-
-            for j in range(5):  # 5 alternativas
-                coluna_x = 100 + j * espacamento_horizontal
-                recorte = binarizada[linha_y-bolha_radius:linha_y+bolha_radius,
-                                     coluna_x-bolha_radius:coluna_x+bolha_radius]
-                soma = np.sum(recorte)
-                intensidade.append(soma)
-
-            # A bolha com maior soma de preto (mais escura) → marcada
-            indice_escolhido = np.argmax(intensidade)
-            respostas_extraidas.append(alternativas[indice_escolhido])
-
-        # Comparar com o gabarito
-        acertos = sum([1 for i, r in enumerate(respostas_extraidas) if r == gabarito[i]])
-        erros = total_questoes - acertos
-        nota = round((acertos / total_questoes) * 10, 2)
+        total = len(gabarito)
+        acertos = sum([1 for i in range(total) if respostas_extraidas[i] == gabarito[i]])
+        erros = total - acertos
+        nota = round((acertos / total) * 10, 2)
 
         return {
             "aluno": aluno,
