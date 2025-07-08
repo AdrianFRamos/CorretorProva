@@ -1,0 +1,13 @@
+train: ../train/images
+val: ../valid/images
+test: ../test/images
+
+nc: 1
+names: ['bolinha']
+
+roboflow:
+  workspace: adrianbranches
+  project: corretor-provas
+  version: 1
+  license: CC BY 4.0
+  url: https://universe.roboflow.com/adrianbranches/corretor-provas/dataset/1
