@@ -2,12 +2,12 @@ train: ../train/images
 val: ../valid/images
 test: ../test/images
 
-nc: 1
+nc: 0
 names: ['bolinha']
 
 roboflow:
   workspace: adrianbranches
   project: corretor-provas
-  version: 4
+  version: 5
   license: CC BY 4.0
-  url: https://universe.roboflow.com/adrianbranches/corretor-provas/dataset/4
+  url: https://universe.roboflow.com/adrianbranches/corretor-provas/dataset/5
