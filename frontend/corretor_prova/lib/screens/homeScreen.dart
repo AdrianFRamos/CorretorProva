@@ -15,13 +15,25 @@ class _HomeScreenState extends State<HomeScreen> {
   String alunoSelecionado = 'Aluno 01';
   int numeroQuestoes = 44; // Padrão, mas totalmente editável
   Map<String, String> gabaritoOficial = {};
+  Map<String, List<int>>? configuracaoQuestoes;
   bool apiConectada = false;
   bool verificandoApi = true;
+  Map<String, dynamic>? infoApi;
   
   final TextEditingController _numeroQuestoesController = TextEditingController();
 
-  final turmas = ['1N', '3N', '5N'];
-  final alunos = ['Aluno 01', 'Aluno 02', 'Aluno 03'];
+  final turmas = ['1N', '2N', '3N', '4N', '5N'];
+  final alunos = ['Aluno 01', 'Aluno 02', 'Aluno 03', 'Aluno 04', 'Aluno 05'];
+
+  // Opções de configuração de questões
+  String tipoConfiguracao = 'automatico';
+  final tiposConfiguracao = {
+    'automatico': 'Detecção Automática',
+    'duas_tabelas': 'Duas Tabelas',
+    'tres_tabelas': 'Três Tabelas',
+    'por_materia': 'Por Matéria',
+    'personalizado': 'Personalizado',
+  };
 
   @override
   void initState() {
@@ -29,6 +41,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _numeroQuestoesController.text = numeroQuestoes.toString();
     _verificarApi();
     _criarGabaritoDefault();
+    _atualizarConfiguracaoQuestoes();
   }
 
   @override
@@ -42,13 +55,18 @@ class _HomeScreenState extends State<HomeScreen> {
     
     try {
       bool conectada = await ApiService.verificarSaude();
+      Map<String, dynamic>? info = await ApiService.obterInfoApi();
+      
       setState(() {
         apiConectada = conectada;
+        infoApi = info;
         verificandoApi = false;
       });
       
       if (!conectada) {
         _mostrarErroConexao();
+      } else {
+        _mostrarInfoApi();
       }
     } catch (e) {
       setState(() {
@@ -62,7 +80,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void _mostrarErroConexao() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Erro: API não está respondendo. Verifique a conexão.'),
+        content: Text('❌ API não está respondendo. Verifique a conexão.'),
         backgroundColor: Colors.red,
         action: SnackBarAction(
           label: 'Tentar Novamente',
@@ -72,10 +90,49 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _mostrarInfoApi() {
+    if (infoApi != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('✅ ${infoApi!['nome']} conectada!'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
   void _criarGabaritoDefault() {
     gabaritoOficial = GabaritoBuilder()
         .criarSequencial(numeroQuestoes)
         .build();
+  }
+
+  void _atualizarConfiguracaoQuestoes() {
+    switch (tipoConfiguracao) {
+      case 'automatico':
+        configuracaoQuestoes = null; // Sistema detecta automaticamente
+        break;
+      case 'duas_tabelas':
+        configuracaoQuestoes = ConfiguradorQuestoes.duasTabelas(numeroQuestoes);
+        break;
+      case 'tres_tabelas':
+        configuracaoQuestoes = ConfiguradorQuestoes.tresTabelas(numeroQuestoes);
+        break;
+      case 'por_materia':
+        configuracaoQuestoes = ConfiguradorQuestoes.porMateria(
+          matematica: List.generate(10, (i) => i + 1),
+          portugues: List.generate(10, (i) => i + 11),
+          ciencias: List.generate(10, (i) => i + 21),
+          historia: List.generate(7, (i) => i + 31),
+          geografia: List.generate(7, (i) => i + 38),
+        );
+        break;
+      case 'personalizado':
+        _mostrarDialogConfiguracaoPersonalizada();
+        return;
+    }
+    setState(() {});
   }
 
   void _atualizarNumeroQuestoes() {
@@ -84,6 +141,7 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         numeroQuestoes = novoNumero;
         _criarGabaritoDefault();
+        _atualizarConfiguracaoQuestoes();
       });
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -120,6 +178,7 @@ class _HomeScreenState extends State<HomeScreen> {
             gabaritoOficial = gabarito;
             numeroQuestoes = gabarito.length;
             _numeroQuestoesController.text = numeroQuestoes.toString();
+            _atualizarConfiguracaoQuestoes();
           });
         },
       ),
@@ -127,12 +186,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _gerarGabaritoAleatorio() {
-    final opcoes = ['A', 'B', 'C', 'D', 'E'];
-    final gabaritoAleatorio = <String, String>{};
-    
-    for (int i = 1; i <= numeroQuestoes; i++) {
-      gabaritoAleatorio[i.toString()] = opcoes[(i - 1) % 5]; // Padrão cíclico
-    }
+    final gabaritoAleatorio = ApiService.criarGabaritoOficial(numeroQuestoes);
     
     setState(() {
       gabaritoOficial = gabaritoAleatorio;
@@ -146,7 +200,44 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _irParaCamera() {
+  void _mostrarDialogConfiguracaoPersonalizada() {
+    showDialog(
+      context: context,
+      builder: (context) => _ConfiguracaoPersonalizadaDialog(
+        numeroQuestoes: numeroQuestoes,
+        onSalvar: (config) {
+          setState(() {
+            configuracaoQuestoes = config;
+          });
+        },
+      ),
+    );
+  }
+
+  void _testarConfiguracoes() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Teste de Configurações'),
+        content: Text('Esta funcionalidade permite testar diferentes configurações de questões com a mesma imagem. Deseja continuar para a tela de câmera?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _irParaCamera(modoTeste: true);
+            },
+            child: Text('Continuar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _irParaCamera({bool modoTeste = false}) {
     if (!apiConectada) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -174,6 +265,8 @@ class _HomeScreenState extends State<HomeScreen> {
           turma: turmaSelecionada,
           aluno: alunoSelecionado,
           gabaritoOficial: gabaritoOficial,
+          configuracaoQuestoes: configuracaoQuestoes,
+          modoTeste: modoTeste,
         ),
       ),
     );
@@ -183,7 +276,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("Correção de Gabarito - Flexível"),
+        title: Text("Sistema Corrigido - v3.0"),
         backgroundColor: Colors.blue,
         actions: [
           IconButton(
@@ -191,6 +284,12 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: _verificarApi,
             tooltip: apiConectada ? 'API Conectada' : 'API Desconectada',
           ),
+          if (apiConectada)
+            IconButton(
+              icon: Icon(Icons.info),
+              onPressed: () => _mostrarInfoDetalhada(),
+              tooltip: 'Informações da API',
+            ),
         ],
       ),
       body: verificandoApi
@@ -205,20 +304,38 @@ class _HomeScreenState extends State<HomeScreen> {
                     color: apiConectada ? Colors.green[50] : Colors.red[50],
                     child: Padding(
                       padding: EdgeInsets.all(16),
-                      child: Row(
+                      child: Column(
                         children: [
-                          Icon(
-                            apiConectada ? Icons.check_circle : Icons.error,
-                            color: apiConectada ? Colors.green : Colors.red,
+                          Row(
+                            children: [
+                              Icon(
+                                apiConectada ? Icons.check_circle : Icons.error,
+                                color: apiConectada ? Colors.green : Colors.red,
+                              ),
+                              SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  apiConectada 
+                                    ? 'Sistema Corrigido Conectado' 
+                                    : 'API Desconectada',
+                                  style: TextStyle(
+                                    color: apiConectada ? Colors.green : Colors.red,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                          SizedBox(width: 8),
-                          Text(
-                            apiConectada ? 'API Conectada (v2.0 Melhorada)' : 'API Desconectada',
-                            style: TextStyle(
-                              color: apiConectada ? Colors.green : Colors.red,
-                              fontWeight: FontWeight.bold,
+                          if (apiConectada && infoApi != null) ...[
+                            SizedBox(height: 8),
+                            Text(
+                              '${infoApi!['versao']} - ${infoApi!['performance']['eficiencia_deteccao']} eficiência',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.green[700],
+                              ),
                             ),
-                          ),
+                          ],
                         ],
                       ),
                     ),
@@ -279,14 +396,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
                   SizedBox(height: 10),
 
-                  // Configuração do Número de Questões (LIVRE)
+                  // Configuração do Número de Questões
                   Card(
                     child: Padding(
                       padding: EdgeInsets.all(16),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Número de Questões (LIVRE):', style: TextStyle(fontWeight: FontWeight.bold)),
+                          Text('Número de Questões:', style: TextStyle(fontWeight: FontWeight.bold)),
                           SizedBox(height: 10),
                           
                           Row(
@@ -314,13 +431,44 @@ class _HomeScreenState extends State<HomeScreen> {
                               SizedBox(width: 10),
                               ElevatedButton(
                                 onPressed: _gerarGabaritoAleatorio,
-                                child: Text('Gerar Padrão'),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.blue,
                                   foregroundColor: Colors.white,
                                 ),
+                                child: Text('Gerar Padrão'),
                               ),
                             ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  SizedBox(height: 10),
+
+                  // Configuração de Questões (NOVA FUNCIONALIDADE)
+                  Card(
+                    child: Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('Configuração de Questões:', style: TextStyle(fontWeight: FontWeight.bold)),
+                          SizedBox(height: 10),
+                          
+                          DropdownButton<String>(
+                            value: tipoConfiguracao,
+                            isExpanded: true,
+                            onChanged: (value) {
+                              setState(() {
+                                tipoConfiguracao = value!;
+                              });
+                              _atualizarConfiguracaoQuestoes();
+                            },
+                            items: tiposConfiguracao.entries.map((entry) => DropdownMenuItem(
+                              value: entry.key,
+                              child: Text(entry.value),
+                            )).toList(),
                           ),
                           
                           SizedBox(height: 10),
@@ -332,7 +480,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
-                              '💡 Dica: Digite qualquer número de questões (ex: 10, 44, 100). O sistema é totalmente flexível!',
+                              _getDescricaoConfiguracao(),
                               style: TextStyle(fontSize: 12, color: Colors.blue[800]),
                             ),
                           ),
@@ -360,20 +508,20 @@ class _HomeScreenState extends State<HomeScreen> {
                               ),
                               ElevatedButton(
                                 onPressed: _editarGabarito,
-                                child: Text('Editar'),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.orange,
                                   foregroundColor: Colors.white,
                                 ),
+                                child: Text('Editar'),
                               ),
                               SizedBox(width: 8),
                               ElevatedButton(
                                 onPressed: _importarGabarito,
-                                child: Text('Importar'),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: Colors.purple,
                                   foregroundColor: Colors.white,
                                 ),
+                                child: Text('Importar'),
                               ),
                             ],
                           ),
@@ -397,27 +545,87 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
 
-                  SizedBox(height: 30),
+                  SizedBox(height: 20),
 
-                  // Botão principal
-                  ElevatedButton(
-                    onPressed: apiConectada ? _irParaCamera : null,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                      padding: EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                  // Botões de ação
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: apiConectada ? _irParaCamera : null,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue,
+                            padding: EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          child: Text(
+                            'Corrigir Gabarito',
+                            style: TextStyle(fontSize: 18, color: Colors.white),
+                          ),
+                        ),
                       ),
+                      SizedBox(width: 10),
+                      ElevatedButton(
+                        onPressed: apiConectada ? _testarConfiguracoes : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          padding: EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: Icon(Icons.science, color: Colors.white),
+                      ),
+                    ],
+                  ),
+
+                  SizedBox(height: 10),
+
+                  // Informações do sistema
+                  Container(
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[100],
+                      borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Text(
-                      'Tirar Foto da Prova (${gabaritoOficial.length} questões)',
-                      style: TextStyle(fontSize: 18, color: Colors.white),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '🎯 Sistema Corrigido v3.0',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        SizedBox(height: 4),
+                        Text('• 95.5% de eficiência (42/44 respostas)', style: TextStyle(fontSize: 12)),
+                        Text('• Configuração flexível de questões', style: TextStyle(fontSize: 12)),
+                        Text('• Detecção automática de tabelas', style: TextStyle(fontSize: 12)),
+                        Text('• Base: Murtaza Hassan Style', style: TextStyle(fontSize: 12)),
+                      ],
                     ),
                   ),
                 ],
               ),
             ),
     );
+  }
+
+  String _getDescricaoConfiguracao() {
+    switch (tipoConfiguracao) {
+      case 'automatico':
+        return '🤖 O sistema detecta automaticamente quantas tabelas existem e processa todas as questões.';
+      case 'duas_tabelas':
+        return '📊 Divide as questões em duas tabelas (esquerda e direita).';
+      case 'tres_tabelas':
+        return '📊 Divide as questões em três tabelas igualmente.';
+      case 'por_materia':
+        return '📚 Organiza as questões por matéria (Matemática, Português, Ciências, etc.).';
+      case 'personalizado':
+        return '⚙️ Configuração personalizada definida por você.';
+      default:
+        return '';
+    }
   }
 
   String _criarPreviewGabarito() {
@@ -438,9 +646,187 @@ class _HomeScreenState extends State<HomeScreen> {
     
     return preview.join(' ');
   }
+
+  void _mostrarInfoDetalhada() {
+    if (infoApi == null) return;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Informações da API'),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildInfoItem('Nome', infoApi!['nome']),
+              _buildInfoItem('Versão', infoApi!['versao']),
+              _buildInfoItem('Método', infoApi!['metodo']),
+              _buildInfoItem('Base', infoApi!['base']),
+              SizedBox(height: 10),
+              Text('Performance:', style: TextStyle(fontWeight: FontWeight.bold)),
+              _buildInfoItem('Eficiência', infoApi!['performance']['eficiencia_deteccao']),
+              _buildInfoItem('Respostas', infoApi!['performance']['respostas_detectadas']),
+              _buildInfoItem('Tempo', infoApi!['performance']['tempo_processamento']),
+              _buildInfoItem('Status', infoApi!['performance']['status']),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Fechar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoItem(String label, dynamic value) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 80,
+            child: Text('$label:', style: TextStyle(fontWeight: FontWeight.w500)),
+          ),
+          Expanded(child: Text(value?.toString() ?? 'N/A')),
+        ],
+      ),
+    );
+  }
 }
 
-// Dialog para editar gabarito (sem limitação)
+// Dialog para configuração personalizada
+class _ConfiguracaoPersonalizadaDialog extends StatefulWidget {
+  final int numeroQuestoes;
+  final Function(Map<String, List<int>>) onSalvar;
+
+  const _ConfiguracaoPersonalizadaDialog({
+    required this.numeroQuestoes,
+    required this.onSalvar,
+  });
+
+  @override
+  _ConfiguracaoPersonalizadaDialogState createState() => _ConfiguracaoPersonalizadaDialogState();
+}
+
+class _ConfiguracaoPersonalizadaDialogState extends State<_ConfiguracaoPersonalizadaDialog> {
+  final Map<String, List<int>> _configuracao = {};
+  final TextEditingController _nomeController = TextEditingController();
+  final TextEditingController _questoesController = TextEditingController();
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('Configuração Personalizada'),
+      content: SizedBox(
+        width: double.maxFinite,
+        height: 400,
+        child: Column(
+          children: [
+            // Adicionar novo grupo
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _nomeController,
+                    decoration: InputDecoration(
+                      labelText: 'Nome do grupo',
+                      hintText: 'ex: matematica',
+                    ),
+                  ),
+                ),
+                SizedBox(width: 8),
+                Expanded(
+                  child: TextField(
+                    controller: _questoesController,
+                    decoration: InputDecoration(
+                      labelText: 'Questões',
+                      hintText: 'ex: 1,2,3,4,5',
+                    ),
+                  ),
+                ),
+                IconButton(
+                  onPressed: _adicionarGrupo,
+                  icon: Icon(Icons.add),
+                ),
+              ],
+            ),
+            
+            SizedBox(height: 16),
+            
+            // Lista de grupos configurados
+            Expanded(
+              child: ListView.builder(
+                itemCount: _configuracao.length,
+                itemBuilder: (context, index) {
+                  final entry = _configuracao.entries.elementAt(index);
+                  return ListTile(
+                    title: Text(entry.key),
+                    subtitle: Text('Questões: ${entry.value.join(', ')}'),
+                    trailing: IconButton(
+                      icon: Icon(Icons.delete),
+                      onPressed: () {
+                        setState(() {
+                          _configuracao.remove(entry.key);
+                        });
+                      },
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text('Cancelar'),
+        ),
+        ElevatedButton(
+          onPressed: _configuracao.isNotEmpty ? () {
+            widget.onSalvar(_configuracao);
+            Navigator.pop(context);
+          } : null,
+          child: Text('Salvar'),
+        ),
+      ],
+    );
+  }
+
+  void _adicionarGrupo() {
+    final nome = _nomeController.text.trim();
+    final questoesTexto = _questoesController.text.trim();
+    
+    if (nome.isEmpty || questoesTexto.isEmpty) return;
+    
+    try {
+      final questoes = questoesTexto
+          .split(',')
+          .map((s) => int.parse(s.trim()))
+          .toList();
+      
+      setState(() {
+        _configuracao[nome] = questoes;
+        _nomeController.clear();
+        _questoesController.clear();
+      });
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Formato inválido. Use números separados por vírgula.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+}
+
+// Dialogs existentes (mantidos para compatibilidade)
 class _GabaritoDialog extends StatefulWidget {
   final Map<String, String> gabaritoAtual;
   final int numeroQuestoes;
@@ -477,7 +863,7 @@ class _GabaritoDialogState extends State<_GabaritoDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: Text('Editar Gabarito (${widget.numeroQuestoes} questões)'),
-      content: Container(
+      content: SizedBox(
         width: double.maxFinite,
         height: 400,
         child: widget.numeroQuestoes <= 50 
@@ -563,7 +949,6 @@ class _GabaritoDialogState extends State<_GabaritoDialog> {
   }
 }
 
-// Dialog para importar gabarito
 class _ImportarGabaritoDialog extends StatefulWidget {
   final Function(Map<String, String>) onImportar;
 
@@ -575,7 +960,7 @@ class _ImportarGabaritoDialog extends StatefulWidget {
 
 class _ImportarGabaritoDialogState extends State<_ImportarGabaritoDialog> {
   final TextEditingController _controller = TextEditingController();
-  String _exemplo = '''Exemplo de formato:
+  final String _exemplo = '''Exemplo de formato:
 1:A
 2:B
 3:C
@@ -589,7 +974,7 @@ A,B,C,D,E,A,B,C,D,E''';
   Widget build(BuildContext context) {
     return AlertDialog(
       title: Text('Importar Gabarito'),
-      content: Container(
+      content: SizedBox(
         width: double.maxFinite,
         height: 300,
         child: Column(
