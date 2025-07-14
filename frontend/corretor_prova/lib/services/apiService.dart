@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 
 class ApiService {
-  static const String baseUrl = 'http://192.168.0.239:5001'; // Atualize com seu IP
+  static const String baseUrl = 'https://corretorprova.onrender.com';
   
   // Verificar se API está funcionando
   static Future<bool> verificarSaude() async {
