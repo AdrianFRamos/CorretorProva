@@ -1,3 +1,4 @@
+import 'package:corretor_prova/screens/loginScreen.dart';
 import 'package:flutter/material.dart';
 import 'screens/homeScreen.dart';
 
@@ -14,7 +15,7 @@ class MyApp extends StatelessWidget {
       title: 'Corretor de Provas',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(primarySwatch: Colors.indigo),
-      home: HomeScreen(),
+      home: LoginScreen(),
     );
   }
 }
