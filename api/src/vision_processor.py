@@ -64,11 +64,15 @@ class VisionProcessorSimplesFuncional:
                     if resposta_detectada == gabarito_oficial[questao]:
                         acertos += 1
             
+            # Nota calculada sobre o TOTAL de questões do gabarito, não sobre as
+            # detectadas — senão um aluno com 40 questões não lidas e 4 acertos
+            # nas detectadas receberia nota 10.
+            total_gabarito = len(gabarito_oficial)
             resultado.update({
                 'acertos': acertos,
                 'total_comparavel': total_comparavel,
-                'precisao': (acertos / total_comparavel * 100) if total_comparavel > 0 else 0,
-                'nota': (acertos / total_comparavel * 10) if total_comparavel > 0 else 0
+                'precisao': (acertos / total_gabarito * 100) if total_gabarito > 0 else 0,
+                'nota': (acertos / total_gabarito * 10) if total_gabarito > 0 else 0
             })
         
         return resultado
