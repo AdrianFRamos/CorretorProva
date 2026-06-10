@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Banco local e imagens de auditoria (gerados em runtime)
+api/src/database/app.db
+api/src/storage/
+
+# Flutter/Dart
+frontend/corretor_prova/.dart_tool/
+frontend/corretor_prova/build/
+frontend/corretor_prova/lib.zip
