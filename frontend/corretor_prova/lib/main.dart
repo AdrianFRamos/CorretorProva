@@ -1,6 +1,5 @@
 import 'package:corretor_prova/screens/loginScreen.dart';
 import 'package:flutter/material.dart';
-import 'screens/homeScreen.dart';
 
 void main() {
   runApp(MyApp());

@@ -1,10 +1,11 @@
 import 'dart:io';
 import 'dart:convert';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../services/apiService.dart';
+import '../services/correcaoService.dart';
 import 'resultadoScreen.dart';
+import 'resultadoCorrecaoScreen.dart';
 
 class CameraScreen extends StatefulWidget {
   final String turma;
@@ -31,7 +32,6 @@ class _CameraScreenState extends State<CameraScreen> {
   bool _processando = false;
   String? _erro;
   String? _debugImageBase64;
-  bool _mostrandoDebug = false;
 
   Future<void> _tirarFoto() async {
     try {
@@ -103,7 +103,6 @@ class _CameraScreenState extends State<CameraScreen> {
 
       setState(() {
         _debugImageBase64 = debugBase64;
-        _mostrandoDebug = true;
         _processando = false;
       });
 
@@ -169,39 +168,58 @@ class _CameraScreenState extends State<CameraScreen> {
       return;
     }
 
+    // Validação local antes de gastar rede: resolução e integridade do arquivo
+    final problemaImagem = await CorrecaoService.validarImagemLocal(_imagem!);
+    if (problemaImagem != null) {
+      if (!mounted) return;
+      setState(() => _erro = problemaImagem);
+      return;
+    }
+
     setState(() {
       _processando = true;
       _erro = null;
     });
 
     try {
-      Map<String, dynamic> resultado;
-
       if (widget.modoTeste) {
-        // Modo teste: testar múltiplas configurações
-        resultado = await _testarMultiplasConfiguracoes();
-      } else {
-        // Modo normal: correção única
-        resultado = await ApiService.corrigirGabarito(
-          turma: widget.turma,
-          aluno: widget.aluno,
-          imagem: _imagem!,
-          gabaritoOficial: widget.gabaritoOficial,
-          configuracaoQuestoes: widget.configuracaoQuestoes,
+        // Modo teste (legado): compara configurações na API v1
+        final resultado = await _testarMultiplasConfiguracoes();
+        if (!mounted) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ResultadoScreen(resultado: resultado, modoTeste: true),
+          ),
         );
+        return;
       }
 
-      // Navegar para tela de resultado
+      // Fluxo principal: pipeline v2 com regras de segurança e revisão manual
+      final correcao = await CorrecaoService.corrigirProva(
+        turma: widget.turma,
+        aluno: widget.aluno,
+        imagem: _imagem!,
+        gabaritoOficial: widget.gabaritoOficial,
+      );
+
+      if (!mounted) return;
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => ResultadoScreen(
-            resultado: resultado,
-            modoTeste: widget.modoTeste,
-          ),
+          builder: (_) => ResultadoCorrecaoScreen(correcao: correcao),
         ),
       );
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _erro = e.codigo == 'NAO_AUTENTICADO' || e.codigo == 'TOKEN_EXPIRADO'
+            ? 'Sessão expirada. Volte e faça login novamente.'
+            : e.mensagem;
+        _processando = false;
+      });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _erro = 'Erro na correção: $e';
         _processando = false;
@@ -572,10 +590,10 @@ class _CameraScreenState extends State<CameraScreen> {
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.info, color: Colors.blue),
+                        Icon(Icons.shield, color: Colors.blue),
                         SizedBox(width: 8),
                         Text(
-                          'Sistema Corrigido v3.0',
+                          'Correção Segura v4.0',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             color: Colors.blue,
@@ -584,10 +602,10 @@ class _CameraScreenState extends State<CameraScreen> {
                       ],
                     ),
                     SizedBox(height: 8),
-                    Text('• 95.5% de eficiência na detecção', style: TextStyle(fontSize: 12)),
-                    Text('• Processamento em ~0.05 segundos', style: TextStyle(fontSize: 12)),
-                    Text('• Suporte a configurações flexíveis', style: TextStyle(fontSize: 12)),
-                    Text('• Debug visual para validação', style: TextStyle(fontSize: 12)),
+                    Text('• Imagens de baixa qualidade são rejeitadas antes da correção', style: TextStyle(fontSize: 12)),
+                    Text('• Questões duvidosas nunca são corrigidas automaticamente', style: TextStyle(fontSize: 12)),
+                    Text('• Marcação dupla, fraca ou rasura vai para revisão manual', style: TextStyle(fontSize: 12)),
+                    Text('• A nota final só sai após validação segura ou revisão', style: TextStyle(fontSize: 12)),
                     if (widget.modoTeste)
                       Text('• Modo teste: compara múltiplas configurações', 
                            style: TextStyle(fontSize: 12, color: Colors.green[700], fontWeight: FontWeight.bold)),

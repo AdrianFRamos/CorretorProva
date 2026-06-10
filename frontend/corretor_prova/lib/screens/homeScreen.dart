@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../screens/cameraScreen.dart';
+import '../screens/historicoScreen.dart';
 import '../services/apiService.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -276,9 +277,17 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("Sistema Corrigido - v3.0"),
+        title: Text("Corretor de Provas"),
         backgroundColor: Colors.blue,
         actions: [
+          IconButton(
+            icon: Icon(Icons.history),
+            tooltip: 'Histórico e exportação',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const HistoricoScreen()),
+            ),
+          ),
           IconButton(
             icon: Icon(apiConectada ? Icons.wifi : Icons.wifi_off),
             onPressed: _verificarApi,
@@ -594,14 +603,14 @@ class _HomeScreenState extends State<HomeScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '🎯 Sistema Corrigido v3.0',
+                          '🎯 Correção Segura v4.0',
                           style: TextStyle(fontWeight: FontWeight.bold),
                         ),
                         SizedBox(height: 4),
-                        Text('• 95.5% de eficiência (42/44 respostas)', style: TextStyle(fontSize: 12)),
-                        Text('• Configuração flexível de questões', style: TextStyle(fontSize: 12)),
-                        Text('• Detecção automática de tabelas', style: TextStyle(fontSize: 12)),
-                        Text('• Base: Murtaza Hassan Style', style: TextStyle(fontSize: 12)),
+                        Text('• Questões duvidosas vão para revisão manual', style: TextStyle(fontSize: 12)),
+                        Text('• A nota só é confirmada após validação segura', style: TextStyle(fontSize: 12)),
+                        Text('• Histórico e exportação de notas no ícone 🕓 acima', style: TextStyle(fontSize: 12)),
+                        Text('• Configuração flexível de questões e alternativas', style: TextStyle(fontSize: 12)),
                       ],
                     ),
                   ),

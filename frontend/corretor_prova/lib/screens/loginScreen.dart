@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../services/correcaoService.dart';
+import 'homeScreen.dart';
+
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -9,6 +12,8 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   bool isSignUp = false;
+  bool _carregando = false;
+  String? _erro;
 
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
@@ -23,12 +28,41 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
-    final mode = isSignUp ? 'Sign Up' : 'Sign In';
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$mode ok (mock)')),
-    );
+    setState(() {
+      _carregando = true;
+      _erro = null;
+    });
+
+    try {
+      if (isSignUp) {
+        await CorrecaoService.registrar(
+          _nameCtrl.text.trim(),
+          _emailCtrl.text.trim(),
+          _passCtrl.text,
+        );
+      } else {
+        await CorrecaoService.login(_emailCtrl.text.trim(), _passCtrl.text);
+      }
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
+      );
+    } on ApiException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _erro = e.mensagem;
+        _carregando = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _erro = 'Não foi possível conectar ao servidor. Verifique sua internet.';
+        _carregando = false;
+      });
+    }
   }
 
   @override
@@ -114,17 +148,32 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     const SizedBox(height: 20),
 
+                    if (_erro != null) ...[
+                      Text(
+                        _erro!,
+                        style: const TextStyle(color: Colors.red, fontSize: 13),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+
                     SizedBox(
                       width: double.infinity,
                       height: 48,
                       child: ElevatedButton(
-                        onPressed: _submit,
+                        onPressed: _carregando ? null : _submit,
                         style: ElevatedButton.styleFrom(
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(28),
                           ),
                         ),
-                        child: Text(isSignUp ? 'CRIAR CONTA' : 'ENTRAR'),
+                        child: _carregando
+                            ? const SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : Text(isSignUp ? 'CRIAR CONTA' : 'ENTRAR'),
                       ),
                     ),
                     const SizedBox(height: 12),
