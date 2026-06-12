@@ -37,7 +37,9 @@ class Sessao {
 
 class CorrecaoService {
   // Sobrescreva em desenvolvimento com:
-  //   flutter run --dart-define=API_URL=http://localhost:5001
+  //   USB Android: adb reverse tcp:5001 tcp:5001
+  //   flutter run --dart-define=API_URL=http://127.0.0.1:5001
+  //   Wi-Fi/celular físico: use http://IP_DO_COMPUTADOR:5001
   static const String baseUrl = String.fromEnvironment(
     'API_URL',
     defaultValue: 'https://corretorprova.onrender.com',

@@ -26,9 +26,10 @@ import cv2
 import numpy as np
 from flask import Blueprint, Response, jsonify, request
 
+from src.ai_omr import resultado_por_ia
 from src.models.correcao import Correcao
 from src.models.user import db
-from src.omr import CorrecaoPipeline, LayoutProva
+from src.omr import LayoutProva
 from src.omr.classifier import STATUS_OK, STATUS_EM_BRANCO
 from src.omr.pipeline import STATUS_APROVADA, STATUS_REVISAO, STATUS_REJEITADA
 from src.routes.auth import requer_login
@@ -136,7 +137,15 @@ def criar_correcao():
     if image is None:
         return _erro('Formato de imagem não suportado.', 'IMAGEM_INVALIDA', 400)
 
-    resultado = CorrecaoPipeline().corrigir(image, gabarito, layout)
+    try:
+        resultado = resultado_por_ia(image, gabarito, layout)
+    except Exception as exc:
+        logger.exception('Falha na leitura por IA')
+        return _erro(
+            f'Nao foi possivel corrigir com IA: {exc}',
+            'IA_CORRECAO_FALHOU',
+            503,
+        )
 
     # Auditoria: salva imagem original sempre (permite reprocessar depois)
     caminho_original = _salvar_imagem(image, 'original')
@@ -287,7 +296,15 @@ def reprocessar_correcao(correcao_id):
     image = cv2.imread(correcao.imagem_original_path)
     gabarito = correcao.gabarito
     layout = LayoutProva(num_questoes=max(int(k) for k in gabarito.keys()))
-    resultado = CorrecaoPipeline().corrigir(image, gabarito, layout)
+    try:
+        resultado = resultado_por_ia(image, gabarito, layout)
+    except Exception as exc:
+        logger.exception('Falha ao reprocessar por IA')
+        return _erro(
+            f'Nao foi possivel reprocessar com IA: {exc}',
+            'IA_CORRECAO_FALHOU',
+            503,
+        )
 
     correcao.resultado_json = json.dumps(resultado)
     correcao.revisoes_json = None  # leitura mudou; revisões antigas não valem mais

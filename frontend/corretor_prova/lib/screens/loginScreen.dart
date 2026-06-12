@@ -56,8 +56,9 @@ class _LoginScreenState extends State<LoginScreen> {
         _erro = e.mensagem;
         _carregando = false;
       });
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
+      print('Erro ao conectar em ${CorrecaoService.baseUrl}: $e');
       setState(() {
         _erro = 'Não foi possível conectar ao servidor. Verifique sua internet.';
         _carregando = false;
